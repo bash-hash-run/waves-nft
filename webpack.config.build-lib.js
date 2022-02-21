@@ -5,6 +5,7 @@ module.exports = (env, argv) => {
     const filename = argv.mode === 'production' ? `[name].min.js` : `[name].develop.js`;
     const conf = {
         mode: 'development',
+        target: 'node',
         devServer: {
             open: true,
             openPage: [`client/example.html`],

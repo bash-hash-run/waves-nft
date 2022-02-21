@@ -1,0 +1,119 @@
+{-# STDLIB_VERSION 5 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let founder = Address(base58'3NAgQzjC1xnhXV6cEp38eJ2vjYAjBUaaLQm')
+
+let CommissionPercent = 5
+
+let StatusNa = "NOT_AVAILABLE"
+let StatusTradable = "TRADABLE"
+let StatusNotTradable = "NOT_TRADABLE"
+
+func getTokenOwnerKey(token: ByteVector) = {
+  "token_owner_" + token.toBase58String()
+}
+
+func getTokenStatusKey(token: ByteVector) = {
+  "token_status_" + token.toBase58String()
+}
+
+func getTokenPriceKey(token: ByteVector) = {
+  "token_price_" + token.toBase58String()
+}
+
+func boolToStatus(value: Boolean) = {
+  if(value == true) then StatusTradable else StatusNotTradable
+}
+
+@Callable(i)
+func mint(ownerAddress: String, name: String, description: String, isTradable: Boolean, price: Int) = {
+  if (founder != i.caller) then {
+    throw("Method only for founder")
+  } else {
+    let asset = Issue(name, description, 1, 0, false)
+    let assetId = asset.calculateAssetId()
+
+    ([
+      StringEntry(getTokenOwnerKey(assetId), ownerAddress),
+      StringEntry(getTokenStatusKey(assetId), boolToStatus(isTradable)),
+      IntegerEntry(getTokenPriceKey(assetId), price),
+      asset
+    ])
+  }
+}
+
+@Callable(i)
+func pickUp(assetIdString: String) = {
+  let assetId = fromBase58String(assetIdString)
+  let ownerKey = getTokenOwnerKey(assetId)
+  let statusKey = getTokenStatusKey(assetId)
+  let realOwner = Address(fromBase58String(getStringValue(ownerKey)))
+  let status = getStringValue(statusKey)
+  if ((i.caller == founder || i.caller == realOwner) && status != StatusNa) then {
+      ([
+        ScriptTransfer(realOwner, 1, assetId),
+        StringEntry(getTokenOwnerKey(assetId), ""),
+        StringEntry(getTokenStatusKey(assetId), StatusNa),
+        IntegerEntry(getTokenPriceKey(assetId), 0)
+      ])
+    } else {
+      throw("Only owner and founder can pick it up")
+    }
+}
+
+@Callable(i)
+func setTokenInfo(assetIdString: String, isTradable: Boolean, price: Int) = {
+  let assetId = fromBase58String(assetIdString)
+  let ownerKey = getTokenOwnerKey(assetId)
+  let statusKey = getTokenStatusKey(assetId)
+  let realOwner = Address(fromBase58String(getStringValue(ownerKey)))
+  let status = getStringValue(statusKey)
+  if (i.caller == realOwner && status != StatusNa) then {
+      ([
+        StringEntry(getTokenStatusKey(assetId), boolToStatus(isTradable)),
+        IntegerEntry(getTokenPriceKey(assetId), price)
+      ])
+    } else {
+      throw("Only owner can set token trade info")
+    }
+}
+
+@Callable(i)
+func buy(assetIdString: String, isTradable: Boolean, newPrice: Int) = {
+  let assetId = i.caller.bytes
+  let callerAddressString = toBase58String(i.caller.bytes)
+  let callerAddress = Address(i.caller.bytes)
+  let ownerKey = getTokenOwnerKey(assetId)
+  let realOwner = Address(fromBase58String(getStringValue(ownerKey)))
+
+  if (size(i.payments) == 0 || i.caller == realOwner)
+    then throw("Payment must be attached and you should not be the asset owner")
+    else {
+      let pmt = i.payments[0]
+      if (isDefined(pmt.assetId))
+        then {
+           throw("This function accepts WAVES tokens only")
+        } else {
+          let currentPrice = getIntegerValue(getTokenPriceKey(assetId))
+          let onePercent = currentPrice / 100
+          let totalSum = onePercent * (100 + CommissionPercent)
+          let realCommission = totalSum - currentPrice
+
+          if (pmt.amount != totalSum) then {
+            throw("Incorrect buy sum")
+          } else {
+            ([
+              ScriptTransfer(realOwner, currentPrice, unit),
+              ScriptTransfer(founder, realCommission, unit),
+              StringEntry(getTokenOwnerKey(assetId), callerAddressString),
+              StringEntry(getTokenStatusKey(assetId), boolToStatus(isTradable)),
+              IntegerEntry(getTokenPriceKey(assetId), newPrice)
+            ])
+          }
+        }
+    }
+}
+
+@Verifier(tx)
+func verify() = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
