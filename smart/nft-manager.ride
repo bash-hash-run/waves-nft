@@ -2,7 +2,8 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let founder = Address(base58'3P3vpupH2BtN9LuCKdTswhJBtesRTTokqnK')
+let commission = Address(base58'3P3vpupH2BtN9LuCKdTswhJBtesRTTokqnK')
+let manager = Address(base58'3PG6eKU8awHSeqtWvm6m4asiVtDpDVK98dV')
 
 let CommissionPercent = 5
 
@@ -28,8 +29,8 @@ func boolToStatus(value: Boolean) = {
 
 @Callable(i)
 func mint(ownerAddress: String, name: String, description: String, isTradable: Boolean, price: Int) = {
-  if (founder != i.caller) then {
-    throw("Method only for founder")
+  if (manager != i.caller) then {
+    throw("Method only for manager")
   } else {
     let asset = Issue(name, description, 1, 0, false)
     let assetId = asset.calculateAssetId()
@@ -50,7 +51,7 @@ func pickUp(assetIdString: String) = {
   let statusKey = getTokenStatusKey(assetId)
   let realOwner = Address(fromBase58String(getStringValue(ownerKey)))
   let status = getStringValue(statusKey)
-  if ((i.caller == founder || i.caller == realOwner) && status != StatusNa) then {
+  if ((i.caller == manager || i.caller == realOwner) && status != StatusNa) then {
       ([
         ScriptTransfer(realOwner, 1, assetId),
         StringEntry(getTokenOwnerKey(assetId), ""),
@@ -58,7 +59,7 @@ func pickUp(assetIdString: String) = {
         IntegerEntry(getTokenPriceKey(assetId), 0)
       ])
     } else {
-      throw("Only owner and founder can pick it up")
+      throw("Only owner and manager can pick it up")
     }
 }
 
@@ -105,7 +106,7 @@ func buy(assetIdString: String, isTradable: Boolean, newPrice: Int) = {
           } else {
             ([
               ScriptTransfer(realOwner, currentPrice, unit),
-              ScriptTransfer(founder, realCommission, unit),
+              ScriptTransfer(commission, realCommission, unit),
               StringEntry(getTokenOwnerKey(assetId), callerAddressString),
               StringEntry(getTokenStatusKey(assetId), boolToStatus(isTradable)),
               IntegerEntry(getTokenPriceKey(assetId), newPrice)
