@@ -2,7 +2,7 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let founder = Address(base58'3NAgQzjC1xnhXV6cEp38eJ2vjYAjBUaaLQm')
+let founder = Address(base58'3P3vpupH2BtN9LuCKdTswhJBtesRTTokqnK')
 
 let CommissionPercent = 5
 
@@ -81,7 +81,7 @@ func setTokenInfo(assetIdString: String, isTradable: Boolean, price: Int) = {
 
 @Callable(i)
 func buy(assetIdString: String, isTradable: Boolean, newPrice: Int) = {
-  let assetId = i.caller.bytes
+  let assetId = fromBase58String(assetIdString)
   let callerAddressString = toBase58String(i.caller.bytes)
   let callerAddress = Address(i.caller.bytes)
   let ownerKey = getTokenOwnerKey(assetId)
